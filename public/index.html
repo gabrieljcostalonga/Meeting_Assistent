@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Agente de Pautas</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="dot"></span> Agente de Pautas</div>
+    <div id="llm-status" class="pill">Verificando acesso ao Claude…</div>
+  </header>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <!-- Tela 1: destino e conexões -->
+  <main id="setup-view" class="container">
+    <section class="hero">
+      <h1>Onde você quer salvar as pautas das reuniões?</h1>
+      <p class="muted">Escolha um destino e autorize o acesso. O agente escuta a reunião, monta a pauta ao vivo e grava tudo lá.</p>
+    </section>
+
+    <div class="dest-grid">
+      <article class="dest-card" data-dest="notion">
+        <header>
+          <h2>Notion</h2>
+          <span class="badge" id="notion-badge">Desconectado</span>
+        </header>
+        <p class="muted">Cada reunião vira uma página dentro da página que você escolher.</p>
+
+        <div id="notion-connect">
+          <a class="btn primary" id="notion-oauth" href="/auth/notion" hidden>Conectar com o Notion</a>
+          <details id="notion-internal">
+            <summary>Conectar com token de integração</summary>
+            <ol class="steps">
+              <li>Abra <a href="https://www.notion.so/profile/integrations" target="_blank" rel="noopener">notion.so/profile/integrations</a> e crie uma integração <b>interna</b>.</li>
+              <li>Copie o <i>Internal Integration Secret</i> e cole abaixo.</li>
+              <li>No Notion, abra a página onde quer as pautas → <b>⋯ → Conexões</b> → adicione a integração.</li>
+            </ol>
+            <form id="notion-token-form" class="row">
+              <input type="password" id="notion-token" placeholder="ntn_…" autocomplete="off" required />
+              <button class="btn">Salvar</button>
+            </form>
+          </details>
+        </div>
+
+        <div id="notion-target" hidden>
+          <label for="notion-pages">Página onde as pautas serão criadas</label>
+          <div class="row">
+            <select id="notion-pages"></select>
+            <button class="btn" id="notion-refresh" title="Recarregar lista">↻</button>
+          </div>
+          <p class="hint">Não encontrou a página? No Notion, adicione a integração em <b>⋯ → Conexões</b> e recarregue.</p>
+          <button class="link" id="notion-disconnect">Desconectar Notion</button>
+        </div>
+
+        <button class="btn choose" data-choose="notion">Usar o Notion</button>
+      </article>
+
+      <article class="dest-card" data-dest="drive">
+        <header>
+          <h2>Google Drive</h2>
+          <span class="badge" id="google-badge">Desconectado</span>
+        </header>
+        <p class="muted">Cada reunião vira um Google Doc numa pasta do seu Drive.</p>
+
+        <div id="google-connect">
+          <a class="btn primary" id="google-oauth" href="/auth/google">Conectar com o Google</a>
+          <p class="hint" id="google-missing" hidden>Configure <code>GOOGLE_CLIENT_ID</code> e <code>GOOGLE_CLIENT_SECRET</code> no <code>.env</code> (veja o README).</p>
+          <p class="hint">O app pede só acesso aos arquivos que ele mesmo criar.</p>
+        </div>
+
+        <div id="google-target" hidden>
+          <label for="google-folders">Pasta onde as pautas serão salvas</label>
+          <div class="row">
+            <select id="google-folders"></select>
+            <button class="btn" id="google-new-folder">Nova pasta</button>
+          </div>
+          <button class="link" id="google-disconnect">Desconectar Google</button>
+        </div>
+
+        <button class="btn choose" data-choose="drive">Usar o Google Drive</button>
+      </article>
+    </div>
+
+    <section class="start-card" id="start-card">
+      <label for="meeting-title">Nome da reunião</label>
+      <input id="meeting-title" placeholder="Ex.: Planejamento do trimestre" />
+      <label class="check"><input type="checkbox" id="live-sync" checked /> Atualizar o documento no destino durante a reunião</label>
+      <button class="btn primary big" id="start-btn" disabled>Começar reunião</button>
+      <p class="hint" id="start-hint"></p>
+    </section>
+  </main>
+
+  <!-- Tela 2: reunião ao vivo -->
+  <main id="meeting-view" class="container meeting" hidden>
+    <div class="meeting-head">
+      <div>
+        <h1 id="m-title"></h1>
+        <p class="muted" id="m-sub"></p>
+      </div>
+      <div class="actions">
+        <button class="btn primary" id="mic-btn">🎙️ Iniciar captura</button>
+        <button class="btn" id="update-btn">Atualizar pauta agora</button>
+        <button class="btn danger" id="finish-btn">Encerrar e salvar</button>
+      </div>
+    </div>
+
+    <div class="status-line">
+      <span id="rec-state" class="pill">Microfone desligado</span>
+      <span id="upd-state" class="pill" hidden>Atualizando pauta…</span>
+      <label class="check small"><input type="checkbox" id="live-sync-2" /> Sincronizar ao vivo</label>
+      <a id="doc-link" class="pill link-pill" target="_blank" rel="noopener" hidden>Abrir documento ↗</a>
+    </div>
+    <p class="hint">Dica: o reconhecimento usa o microfone. Em reuniões online, deixe o som nos alto-falantes (sem fone) ou use um dispositivo de loopback para captar as outras pessoas.</p>
+    <div id="err" class="error" hidden></div>
+
+    <div class="cols">
+      <section class="panel transcript-panel">
+        <h2>Transcrição</h2>
+        <div id="transcript" class="transcript"></div>
+        <div id="interim" class="interim"></div>
+      </section>
+
+      <section class="panel agenda-panel">
+        <h2>Pauta ao vivo</h2>
+        <div id="agenda"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
